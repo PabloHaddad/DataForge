@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataForge - Gerador de Dashboards</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="alternate icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none'%3E%3Cdefs%3E%3ClinearGradient id='df-bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%230F172A'/%3E%3Cstop offset='100%25' stop-color='%23020617'/%3E%3C/linearGradient%3E%3ClinearGradient id='forge-grad' x1='0%25' y1='100%25' x2='100%25' y2='0%25'%3E%3Cstop offset='0%25' stop-color='%230052CC'/%3E%3Cstop offset='50%25' stop-color='%2300965E'/%3E%3Cstop offset='100%25' stop-color='%2300F59B'/%3E%3C/linearGradient%3E%3ClinearGradient id='spark-grad' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%2338BDF8'/%3E%3Cstop offset='100%25' stop-color='%2300F59B'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23df-bg)'/%3E%3Crect width='62' height='62' x='1' y='1' rx='13' stroke='url(%23forge-grad)' stroke-width='1.5' stroke-opacity='0.4'/%3E%3Cpath d='M14 42L18 36H46L50 42C50 42 44 48 32 48C20 48 14 42 14 42Z' fill='url(%23forge-grad)'/%3E%3Cpath d='M12 28C12 26 14 24 17 24H47C50 24 52 26 52 28C52 30 50 32 46 32H18C14 32 12 30 12 28Z' fill='%2338BDF8' fill-opacity='0.9'/%3E%3Cpath d='M22 32H42L38 38H26L22 32Z' fill='url(%23forge-grad)' fill-opacity='0.8'/%3E%3Cpath d='M32 12L36 19L32 26L28 19L32 12Z' fill='url(%23spark-grad)'/%3E%3Ccircle cx='21' cy='18' r='2' fill='%2300F59B'/%3E%3Ccircle cx='43' cy='18' r='2' fill='%2338BDF8'/%3E%3Cline x1='32' y1='26' x2='32' y2='32' stroke='%2300F59B' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="templates.js"></script>
+
+    <!-- Three.js ES Modules Setup -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #030816; color: #ffffff; }
+        
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+        
+        .ui-layer {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 10; display: flex; align-items: center; justify-content: center;
+            pointer-events: none;
+        }
+
+        .glass-card {
+            pointer-events: auto;
+            background: rgba(10, 25, 60, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 179, 113, 0.2);
+            border-radius: 16px;
+            padding: 40px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .glass-card.drag-over {
+            border-color: #00B371;
+            box-shadow: 0 0 40px rgba(0, 179, 113, 0.3);
+            background: rgba(10, 25, 60, 0.6);
+        }
+
+        h1 { font-size: 1.8rem; font-weight: 300; text-align: center; margin-bottom: 24px; letter-spacing: 1px; }
+        h1 strong { font-weight: 700; color: #00B371; }
+        
+        .input-group { margin-bottom: 16px; text-align: left; }
+        .input-group label { display: block; font-size: 0.85rem; color: #00B371; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+        .input-group input { 
+            width: 100%; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(0,179,113,0.3); 
+            border-radius: 8px; color: white; font-size: 1rem; outline: none; transition: border 0.3s;
+        }
+        .input-group input:focus { border-color: #00B371; box-shadow: 0 0 10px rgba(0,179,113,0.2); }
+
+        .upload-area {
+            border: 1px dashed rgba(0,179,113,0.5); border-radius: 12px; padding: 30px 20px;
+            cursor: pointer; position: relative; background: rgba(0, 179, 113, 0.05);
+            text-align: center; transition: all 0.3s ease; margin-bottom: 16px;
+        }
+        .upload-area:hover { background: rgba(0, 179, 113, 0.15); border-color: #00B371; }
+        .upload-area input[type="file"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+        .upload-area p.instructions { font-weight: 600; color: #E6F0FA; margin-bottom: 4px; font-size: 1rem; }
+        .upload-area p.formats { font-size: 0.8rem; color: #00B371; opacity: 0.8; }
+        
+        .file-name { font-weight: 600; color: #00B371; display: none; text-align: center; margin-bottom: 16px; text-shadow: 0 0 5px rgba(0,179,113,0.5); }
+        
+        button.forjar-btn {
+            background: linear-gradient(90deg, #004A8F, #00B371); color: white; border: none; 
+            padding: 16px 24px; font-size: 1rem; font-weight: 700; border-radius: 8px; 
+            cursor: pointer; width: 100%; text-transform: uppercase; letter-spacing: 2px;
+            box-shadow: 0 4px 15px rgba(0, 74, 143, 0.4); transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button.forjar-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0, 179, 113, 0.4); }
+        button.forjar-btn:disabled { background: #1E293B; box-shadow: none; color: #475569; cursor: not-allowed; transform: none; }
+
+        /* Success Screen */
+        .success-screen {
+            pointer-events: auto; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center; opacity: 0; display: none; z-index: 20;
+        }
+        .btn-download {
+            background: rgba(0, 179, 113, 0.2); backdrop-filter: blur(10px); color: #fff;
+            font-size: 1.1rem; font-weight: 600; padding: 16px 40px; border-radius: 50px;
+            border: 1px solid #00B371; cursor: pointer; box-shadow: 0 0 20px rgba(0,179,113,0.3);
+            transition: all 0.3s;
+        }
+        .btn-download:hover { background: #00B371; box-shadow: 0 0 40px rgba(0,179,113,0.6); }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div class="ui-layer">
+        <div class="glass-card" id="mainCard">
+            <h1>Gerador de <strong>Dashboard</strong></h1>
+            <form id="uploadForm">
+                <div class="input-group">
+                    <label>Título do Dashboard</label>
+                    <input type="text" id="tituloInput" name="titulo" placeholder="Ex: Matriz de Risco TI" required>
+                </div>
+                <div class="input-group">
+                    <label>Descrição Opcional</label>
+                    <input type="text" id="descInput" name="descricao" placeholder="Ex: Análise do 3º Trimestre">
+                </div>
+
+                <div class="upload-area" id="drop-zone">
+                    <input type="file" name="file" id="fileInput" accept=".xlsx, .xls, .csv" required>
+                    <p class="instructions">Arraste a Planilha</p>
+                    <p class="formats">Formatos: .xlsx, .xls, .csv</p>
+                </div>
+                <div class="file-name" id="fileNameDisplay">Nenhum arquivo</div>
+                
+                <button type="submit" class="forjar-btn" id="submitBtn" disabled>Processar Dados</button>
+            </form>
+        </div>
+
+        <div class="success-screen" id="successScreen">
+            <h2 style="margin-bottom: 24px; font-weight: 300; text-shadow: 0 0 10px rgba(0,179,113,0.5);">Processamento <strong style="color:#00B371;">Concluído</strong></h2>
+            <button class="btn-download" id="downloadBtn">BAIXAR DASHBOARD</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // ==========================================
+        // THREE.JS SETUP (Clean Particle Wave)
+        // ==========================================
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x030816, 0.005);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 15, 30);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.toneMapping = THREE.ReinhardToneMapping;
+        container.appendChild(renderer.domElement);
+
+        // Bloom
+        const renderScene = new RenderPass(scene, camera);
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.3, 0.85);
+        bloomPass.threshold = 0.2;
+        bloomPass.strength = 1.0;
+        
+        const composer = new EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
+
+        // Grid of Particles (InstancedMesh)
+        const gridSize = 40;
+        const spacing = 1.5;
+        const count = gridSize * gridSize;
+        const geometry = new THREE.SphereGeometry(0.15, 8, 8);
+        const material = new THREE.MeshBasicMaterial({ color: 0x00B371 });
+        
+        const particles = new THREE.InstancedMesh(geometry, material, count);
+        scene.add(particles);
+
+        const dummy = new THREE.Object3D();
+        const positions = [];
+        
+        let idx = 0;
+        for(let x = 0; x < gridSize; x++) {
+            for(let z = 0; z < gridSize; z++) {
+                const px = (x - gridSize/2) * spacing;
+                const pz = (z - gridSize/2) * spacing;
+                positions.push({ x: px, z: pz });
+                
+                dummy.position.set(px, 0, pz);
+                dummy.updateMatrix();
+                particles.setMatrixAt(idx, dummy.matrix);
+                idx++;
+            }
+        }
+
+        let time = 0;
+        let isProcessing = false;
+        let intensity = 1.0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            time += isProcessing ? 0.03 : 0.01;
+            
+            for(let i=0; i<count; i++) {
+                const pos = positions[i];
+                // Clean wave math
+                const wave1 = Math.sin(pos.x * 0.2 + time) * 2;
+                const wave2 = Math.cos(pos.z * 0.2 + time * 0.8) * 2;
+                const y = (wave1 + wave2) * intensity;
+                
+                dummy.position.set(pos.x, y, pos.z);
+                
+                // Scale based on height
+                const s = Math.max(0.2, (y + 4) / 4);
+                dummy.scale.set(s, s, s);
+                
+                dummy.updateMatrix();
+                particles.setMatrixAt(i, dummy.matrix);
+            }
+            particles.instanceMatrix.needsUpdate = true;
+            
+            // Slow camera rotation
+            camera.position.x = Math.sin(time * 0.1) * 30;
+            camera.position.z = Math.cos(time * 0.1) * 30;
+            camera.lookAt(0, 0, 0);
+
+            composer.render();
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ==========================================
+        // UI & LOGIC FLOW
+        // ==========================================
+        const fileInput = document.getElementById('fileInput');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const submitBtn = document.getElementById('submitBtn');
+        const dropZone = document.getElementById('drop-zone');
+        const mainCard = document.getElementById('mainCard');
+        const successScreen = document.getElementById('successScreen');
+        let downloadedBlobUrl = null;
+
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); mainCard.classList.add('drag-over'); });
+        dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); mainCard.classList.remove('drag-over'); });
+        dropZone.addEventListener('drop', () => { mainCard.classList.remove('drag-over'); });
+
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                fileNameDisplay.textContent = '✅ Planilha carregada: ' + e.target.files[0].name;
+                fileNameDisplay.style.display = 'block';
+                submitBtn.disabled = false;
+                gsap.to(dropZone, {borderColor: '#00B371', duration: 0.3});
+            } else {
+                submitBtn.disabled = true;
+            }
+        });
+
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            // 1. Clean Hide UI
+            gsap.to(mainCard, { opacity: 0, scale: 0.9, duration: 0.6, onComplete: () => mainCard.style.display='none' });
+
+            // 2. Trigger Clean Animation Transition
+            isProcessing = true;
+            gsap.to(bloomPass, {strength: 2.5, duration: 1}); // Glow up
+            
+            // 3. Send to Backend
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('titulo', document.getElementById('tituloInput').value);
+            formData.append('descricao', document.getElementById('descInput').value);
+
+            // 3. Process Locally with SheetJS
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    // Auto-detecta a linha de cabeçalho
+                    const rows_array = XLSX.utils.sheet_to_json(worksheet, {header: 1, defval: ""});
+                    let headerRowIdx = 0;
+                    for (let i = 0; i < rows_array.length; i++) {
+                        const rowStrs = rows_array[i].map(x => String(x).trim().toUpperCase());
+                        if (rowStrs.includes('ID') || rowStrs.includes('RISCO') || rowStrs.includes('ÁREA') || rowStrs.includes('NOME DO RISCO') || rowStrs.includes('AREA')) {
+                            headerRowIdx = i;
+                            break;
+                        }
+                    }
+                    const raw_json = XLSX.utils.sheet_to_json(worksheet, {range: headerRowIdx, defval: ""});
+                    
+                    // Mapeamento dinâmico de colunas (sinônimos comuns)
+                    const column_mappings = {
+                        'Nome do Risco': 'Risco',
+                        'Risco Identificado': 'Risco',
+                        'Descrição': 'Risco',
+                        'Area': 'Área',
+                        'Setor': 'Área',
+                        'Impacto Financeiro': 'Custo Estimado',
+                        'Custo': 'Custo Estimado',
+                        'Custo Médio Estimado': 'Custo Estimado',
+                        'Custo Mensal Amortizado': 'Custo Mensal',
+                        'Gasto Mensal': 'Custo Mensal',
+                        'Classificacao': 'Classificação',
+                        'Classificação ETP': 'Classificação',
+                        'Classificação GERAL': 'Classificação',
+                        'Grau de Risco': 'Classificação'
+                    };
+
+                    const required_cols = ['ID', 'Risco', 'Área', 'Categoria', 'Classificação', 'Custo Mensal', 'Custo Estimado'];
+
+                    const json_data = raw_json.map(row => {
+                        let newRow = {};
+                        // Applica mapeamento de colunas
+                        for(let key in row) {
+                            let mappedKey = column_mappings[key] || key;
+                            newRow[mappedKey] = row[key];
+                        }
+                        
+                        // Garante que colunas obrigatórias existem
+                        required_cols.forEach(col => {
+                            if(!(col in newRow)) newRow[col] = "";
+                        });
+
+                        // Default vulnerabilidades
+                        if(!newRow['Vulnerabilidades']) {
+                            newRow['Vulnerabilidades'] = 1;
+                        } else {
+                            let v = parseInt(newRow['Vulnerabilidades']);
+                            newRow['Vulnerabilidades'] = isNaN(v) ? 1 : v;
+                        }
+
+                        // Clean currency exactly like python parse_currency
+                        function parse_currency_local(val) {
+                            if(!val) return 0;
+                            let str = val.toString().toUpperCase().trim();
+                            if (str.includes(' A ') || str.includes('-')) {
+                                const matches = [...str.matchAll(/(\d+(?:\.\d+)?)\s*([KM]?)/g)];
+                                if(matches.length === 0) return 0;
+                                let values = [];
+                                for(const match of matches) {
+                                    let num = parseFloat(match[1]);
+                                    if(match[2] === 'K') num *= 1000;
+                                    if(match[2] === 'M') num *= 1000000;
+                                    values.push(num);
+                                }
+                                const sum = values.reduce((a, b) => a + b, 0);
+                                return sum / values.length;
+                            } else {
+                                let multiplier = 1;
+                                if(str.includes('K')) multiplier = 1000;
+                                if(str.includes('M')) multiplier = 1000000;
+                                let clean_str = str.replace(/[^0-9,.-]/g, '');
+                                if(!clean_str) return 0;
+                                if (clean_str.includes('.') && clean_str.includes(',')) {
+                                    clean_str = clean_str.replace(/\./g, '').replace(',', '.');
+                                } else if (clean_str.includes(',')) {
+                                    clean_str = clean_str.replace(',', '.');
+                                } else if ((clean_str.match(/\./g) || []).length > 1) {
+                                     clean_str = clean_str.replace(/\./g, '');
+                                }
+                                let num = parseFloat(clean_str);
+                                if (isNaN(num)) return 0;
+                                return num * multiplier;
+                            }
+                        }
+
+                        newRow['Gasto Médio Numérico'] = parse_currency_local(newRow['Custo Estimado']);
+                        newRow['Custo Mensal Numérico'] = parse_currency_local(newRow['Custo Mensal']);
+
+
+                        return newRow;
+                    });
+
+                    const dados_js_str = `const dashboardData = {"riscos": ${JSON.stringify(json_data)}};`;
+                    
+                    const titulo = document.getElementById('tituloInput').value || "Dashboard";
+                    const descricao = document.getElementById('descInput').value || "";
+
+                    let finalHtml = TEMPLATE_HTML;
+                    finalHtml = finalHtml.replace('/* {{ CSS_CONTENT }} */', TEMPLATE_CSS);
+                    finalHtml = finalHtml.replace('/* {{ JS_CONTENT }} */', TEMPLATE_JS);
+                    finalHtml = finalHtml.replace('/* {{ DATA_CONTENT }} */', dados_js_str);
+                    finalHtml = finalHtml.replace('/* {{ TITLE_CONTENT }} */', titulo);
+                    finalHtml = finalHtml.replace('/* {{ DESC_CONTENT }} */', descricao);
+                    
+                    const blob = new Blob([finalHtml], {type: 'text/html'});
+                    downloadedBlobUrl = window.URL.createObjectURL(blob);
+                    
+                    // Transition to success
+                    gsap.to(bloomPass, {strength: 1.0, duration: 1});
+                    successScreen.style.display = 'block';
+                    gsap.to(successScreen, { opacity: 1, y: -20, duration: 1, ease: "power3.out" });
+
+                } catch (err) {
+                    alert("Erro ao processar planilha: " + err);
+                    window.location.reload();
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+            if(downloadedBlobUrl) {
+                const a = document.createElement('a');
+                a.href = downloadedBlobUrl;
+                a.download = 'Dashboard_Gerado.html';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                // Feedback
+                downloadBtn.textContent = "Download Iniciado!";
+                gsap.to(downloadBtn, {backgroundColor: '#004A8F', scale: 0.95, duration: 0.2, yoyo: true, repeat: 1});
+                setTimeout(() => { downloadBtn.textContent = "BAIXAR NOVAMENTE"; }, 2000);
+            }
+        });
+    </script>
+</body>
+</html>
